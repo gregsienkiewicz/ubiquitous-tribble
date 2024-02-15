@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Template for creating a S3 bucket for storing the Terraform state and DynamoDB table locking the state"
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: "The name for the S3 bucket used to store the Terraform state."
+  TableName:
+    Type: String
+    Description: "The name for the DynamoDB table for locking the state."
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    # DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref BucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref TableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: LockID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LockID
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        # Cloudformation doesn't support automatically tagging of DynamoDB
+        - Key: aws-cloudformation-logical-id
+          Value: "TerraformStateLockDynamoDBTable"
+        - Key: aws-cloudformation-stack-id
+          Value: !Ref "AWS::StackId"
+        - Key: aws-cloudformation-stack-name
+          Value: !Ref "AWS::StackName"
+
+Outputs:
+  TerraformStateS3BucketName:
+    Value: !Ref S3Bucket
+    Description: Name of the S3 bucket
+  TerraformStateLockDynamoDBTableName:
+    Value: !Ref DynamoDBTable
+    Description: Name of the DynamoDB table
